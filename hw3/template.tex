@@ -1,0 +1,337 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath}
+\usepackage{algpseudocode,algorithm}
+\usepackage{subfigure}
+\usepackage{graphicx}
+\usepackage{psfrag,color}
+\usepackage{fullpage}
+\usepackage{epsfig}
+\usepackage{amssymb}
+\usepackage{titlesec}
+\usepackage{minted}
+
+\titleformat{\section}
+  {\normalfont\large\bfseries}   
+  {}
+  {0pt}
+  {}
+
+\titleformat{\subsection}
+  {\normalfont\bfseries}   
+  {}
+  {0pt}
+  {}
+
+\setlength{\textwidth}{6.5in}
+\setlength{\oddsidemargin}{0.0in}
+\setlength{\textheight}{9.0in}
+\setlength{\parindent}{0in}
+
+\renewcommand\arraystretch{2.4}
+
+\renewcommand{\baselinestretch}{1.2}
+\newcommand{\problem}[1]{ \medskip \pp $\underline{\rm Problem\ #1}$\\ }
+
+\pagestyle{empty}
+
+\def\pp{\par\noindent}
+\DeclareMathOperator{\E}{\mathbb{E}}
+\begin{document}
+
+\centerline{\{\bf Amy Qi, xq2224\}}
+\centerline{\bf Homework 3 Solutions}
+\centerline{\bf W4771 Machine Learning --- Fall 2023}
+
+\bigskip 
+\bigskip
+
+\section*{Problem 1}
+How I avoided forming bag-of-words feature vectors directly: use word IDs as indices to find the corresponding entry in the weight vector. \\
+To be more precise, when making predictions, use the method described above to find all associated weights and sum them up. This is the prediction result we look for. If it's negative then the output is False, otherwise it's true. Compare this output with the true label, update the weight vector according to the perceptron algorithm. This is also done through using word ID as indices. Just find the corresponding entry in the weight vector and plus or subtract 1 from it for each word. \\
+Code attached below.
+
+\begin{minted}{python}
+# initialization
+w = np.zeros(vocab_size)
+
+# perceptron algo
+n = len(examples)
+for i in range(n):
+    # get the classfication result of w_(i-1)
+    yi = 0
+    for idx in examples[i][1]:
+        yi += w[idx]
+    if yi > 0: # classfied True
+        if examples[i][0] == False:
+            for j in examples[i][1]:
+                w[j] -= 1
+    else:
+        if examples[i][0] == True:
+            for j in examples[i][1]:
+                w[j] += 1
+
+# get w
+w
+\end{minted}
+
+The training error rate is 0.179. \\
+The test error rate is 0.180.
+
+\newpage
+\section*{Problem 2}
+10 words with the highest weights: \\
+'fantastic', 'perfect', 'perfection', 'heaven', 'phenomenal', 'perfectly', 'disappoint', 'superb', 'incredible', 'gem', 'skeptical' \\
+
+10 words with the lowest weights:\\
+'worst', 'poisoning', 'inedible', 'disgusting', 'disappointing', 'awful', 'flavorless', 'mediocre', 'horrible', 'underwhelmed', 'bland', 'lacked', 'worse', 'meh', 'tasteless'
+
+\section*{Problem 3}
+I implemented the "Averaged Perceptron" algorithm. \\
+
+Training error rate: 0.104 \\
+Test error rate: 0.107 \\
+
+10 words with the highest weights: \\
+'fantastic', 'excellent', 'delicious', 'amazing', 'perfect', 'perfection', 'perfectly', 'disappoint', 'incredible', 'gem'\\
+
+10 words with the lowest weights:\\
+'worst', 'terrible', 'disappointing', 'awful', 'mediocre', 'horrible', 'bland', 'lacked', 'disappointment', 'meh'
+
+\newpage
+\section*{Problem 4}
+\subsection*{(a)}
+I have 42 features left.
+
+\begin{minted}{python}
+# make deep copies of the data
+X = np.array(freedman['data'])
+Y = np.array(freedman['labels'])
+P = np.zeros(d)
+
+# calculate p_j values
+for j in range(d):
+    idx = slice(j, j+1)
+    Xj = X[:, idx].reshape(100,)
+    P[j] = Xj @ Y / n
+
+# get indices of relavant features
+threshold = 2/np.sqrt(n)
+J = P[abs(P)>threshold]
+print("Number of features in J is " + str(J.shape[0]))
+\end{minted}
+
+\subsection*{(b)}
+Empirical risk is 0.207.
+\begin{minted}{python}
+# filter out irrelavant features
+indices = np.where(np.isin(P, J))[0]
+data = X[:, indices]
+
+# get the weight vector
+def learn(train_x, train_y):
+    return np.linalg.pinv(train_x).dot(train_y)
+
+shortw = learn(data, Y)
+
+# pad this weight vector
+w = np.zeros(d)
+w[indices] = shortw
+
+# calculate sse
+sse = ((X @ w - Y)**2).sum()/n
+print(sse) # 0.20727664942631852
+\end{minted}
+
+\subsection*{(c)}
+Test risk is 1.45.
+\begin{minted}{python}
+# make deep copies of the data
+testdata = np.array(freedman['testdata'])
+testlabels = np.array(freedman['testlabels'])
+
+Yhead = testdata.dot(w)
+
+# calculate sse on test dataset
+testsse = np.mean(((Yhead - testlabels)**2))
+print(testsse)  # 1.447168408563264
+\end{minted}
+
+\subsection*{(d)}
+This is because we use the same dataset for both model selection and training. That's how we got that pretty training error rate, which in fact suggests nothing.\\
+Optional part (d)
+True risk of $\widetilde{w}$ is
+\begin{equation}
+    \begin{split}
+        \mathbb{E}(\widetilde w^T x-y)^2 &= Var(w^T x-y) + \mathbb({E}(w^T x-y))^2 \\
+        &= Var(w^Tx) + Var(y) + 0 \\
+        &= w^T \mathbb{I} w + 1 \\
+    \end{split}
+\end{equation}
+
+\subsection*{(e)}
+Should be higher. \\
+The empirical risk is now 0.601. \\
+We selected those 42 features based on some randomly generated data where there is absolutely no correlation. Now we train the model with some data that is actually meaningful. Even if the training process itself makes sense, those selected features might not work best for this set of data. However, they are indeed optimal for the random data in problem (b). So the error rate should be higher.
+
+\begin{minted}{python}
+# make deep copies of the data
+X2 = np.array(freedman['data2'])
+Y2 = np.array(freedman['labels2'])
+
+# filter out irrelavant features
+data2 = X2[:, indices]
+
+# get the weight vector
+def learn(train_x, train_y):
+    return np.linalg.pinv(train_x).dot(train_y)
+
+shortw2 = learn(data2, Y2)
+
+# pad this weight vector
+w2 = np.zeros(d)
+w2[indices] = shortw2
+
+# calculate sse
+sse2 = ((X2 @ w2 - Y2)**2).sum()/n
+print(sse2) # 0.6008415658067544
+\end{minted}
+
+\newpage
+\section*{Problem 5}
+\subsection*{(a)}
+To prove that $NS(A)=NS(A^TA)$, we need to show $NS(A)\subset NS(A^TA)$ and $NS(A^TA)\subset NS(A)$. Since it's trivial that if $A$ is a zero matrix, all vectors in $\mathbb{R}^d$ multiplying the matrix results in $0$, and the property can be easily verified, we only look at cases where $A$ is not a zero matrix. \\
+
+Proof of $NS(A)\subset NS(A^TA)$: \\
+Consider any vector $\Vec{x} \in NS(A)$, we have $A\Vec{x} = \Vec{0}$. Multiplying both sides of the equation by $A^T$, we have $A^TA\Vec{x} = A^T \Vec{0} = \Vec{0}$. Hence we know $\Vec{x}$ is also in $NS(A^TA)$.\\
+
+Proof of $NS(A^TA) \subset NS(A)$: \\
+Consider any vector $\Vec{x} \in NS(A^TA)$, we have $(A^TA) \Vec{x} = \Vec{0}$. If $\Vec{x}$ is a zero vector, we have $A \Vec{x} = \Vec{0}$, and $\Vec{x} \in NS(A^TA)$. If $\Vec{x}$ is a zero vector, $\Vec{x}^T$ is also not a zero vector. Multiplying both sides of the equation by $\Vec{x}^T$, we have $\Vec{x}^T (A^TA) \Vec{x} = \Vec{x}^T \Vec{0} = \Vec{0}$. Since matrix multiplication is associative, we have $(\Vec{x}^TA^T) (A\Vec{x}) = \Vec{0}$. A vector $A\Vec{x}$ can only be orthogonal to itself if it's a zero vector. Thus $A\Vec{x} = \Vec{0}$ and $\Vec{x} \in NS(A)$.\\
+
+In conclusion, since $NS(A)\subset NS(A^TA)$ and $NS(A^TA)\subset NS(A)$, we know $NS(A)=NS(A^TA)$.
+
+\subsection*{(b)}
+% To prove that $CS(A)=CS(AA^T)$, we need to show $CS(AA^T) \subset CS(A)$ and $CS(A)\subset CS(AA^T)$. \\
+
+% Proof of $CS(AA^T) \subset CS(A)$: \\
+% Consider a vector $\Vec{a} \in CS(AA^T)$. This vector can be written as $\Vec{a} = AA^T\Vec{x}$ where $\Vec{x}$ is some d-vector. Now look at $\Vec{y} = A^T\Vec{x}$, which is an n-vector. The equation can be written as $\Vec{a} = A \Vec{y}$, which means $\Vec{a} \in CS(A)$. \\
+
+% Proof of $CS(A)\subset CS(AA^T)$:\\
+
+$CS(A)$ is the orthogonal complement of $NS(A^T)$, $CS(AA^T)$ is the orthogonal complement of $NS(AA^T)$. Since $NS(A)=NS(A^TA)$, we know $NS(A^T)=NS(AA^T)$, and thus $CS(A)=CS(AA^T)$.
+
+\newpage
+\section*{Problem 6}
+We are looking for a vector $\Vec{v}$ such that, when plugged into this log likelihood function $LL(\Vec{w} = \sum_{i=1}^{n} (y^{(i)}\Vec{w}^T x^{(i)} - ln(1+e^{\Vec{w}^T x^{(i)}}))$, $LL(\Vec{v})\geq -\epsilon$. 
+
+If we can find a vector $\Vec{v}$ to ensure each of these $(y^{(i)}\Vec{w}^T x^{(i)} - ln(1+e^{\Vec{w}^T x^{(i)}}) \geq -\epsilon / n$, the sum of all of them must be lower bounded by $-\epsilon$.
+
+Suppose this vector $\Vec{v}$ can be written as $\Vec{v} = k \widetilde{w}$, where $\widetilde{w}$ is the given weight vector that satisfies $\widetilde{w}^T x>0$ iff $y^{(i)}=1$.
+
+Consider $y^{(i)}=0$, which indicates $\widetilde{w}^T x^{(i)}<0$, we want 
+\begin{equation}
+    \begin{split}
+        - ln(1+e^{\Vec{v}^T x^{(i)}}) &\geq -\epsilon / n \\
+        ln(1+e^{\Vec{v}^T x^{(i)}}) &\leq \epsilon / n \\
+        1+e^{\Vec{v}^T x^{(i)}} &\leq e^{\epsilon / n} \\
+        e^{\Vec{v}^T x^{(i)}} &\leq e^{\epsilon / n}-1 \\
+        \Vec{v}^T x^{(i)} &\leq ln(e^{\epsilon / n}-1) \\
+        k \widetilde{w}^T x^{(i)} &\leq ln(e^{\epsilon / n}-1)\\
+        -k |\widetilde{w}^T x^{(i)}| &\leq ln(e^{\epsilon / n}-1) \\
+        -k \gamma &\leq ln(e^{\epsilon / n}-1) \\
+        k &\geq -\frac{ln(e^{\epsilon / n}-1)}{\gamma}
+    \end{split}
+\end{equation}
+
+Consider $y^{(i)}=1$, which indicates $\widetilde{w}^T x^{(i)}<0$, we want 
+\begin{equation}
+    \begin{split}
+        \Vec{v}^T x^{(i)}- ln(1+e^{\Vec{v}^T x^{(i)}}) &\geq -\epsilon / n \\
+        \frac{e^{\Vec{v}^T x^{(i)}}}{1+e^{\Vec{v}^T x^{(i)}}} &\geq e^{-\epsilon / n} \\
+        \frac{1}{1/e^{\Vec{v}^Tx^{(i)}} + 1} &\geq e^{-\epsilon / n} \\
+        1/e^{\Vec{v}^Tx^{(i)}} + 1 &\leq 1/e^{-\epsilon / n} \\
+        1/e^{\Vec{v}^Tx^{(i)}} &\leq 1/e^{-\epsilon / n} - 1 \\
+        e^{\Vec{v}^Tx^{(i)}} &\geq \frac{1}{1/e^{-\epsilon / n} - 1} \\
+        \Vec{v}^Tx^{(i)} &\geq -ln(1/e^{-\epsilon / n} - 1) \\
+        k \widetilde{w}^T x^{(i)} &\geq -ln(1/e^{-\epsilon / n} - 1) \\
+        k |\widetilde{w}^T x^{(i)}| &\geq -ln(1/e^{-\epsilon / n} - 1) \\
+        k \gamma &\geq -ln(1/e^{-\epsilon / n} - 1)\\
+        k &\geq -\frac{ln(e^{\epsilon / n}-1)}{\gamma}
+    \end{split}
+\end{equation}
+So $\Vec{v} = -\frac{ln(e^{\epsilon / n}-1)}{\gamma} \widetilde{w}$ is a solution we are looking for. This value works for $\epsilon \leq nln2$, and we will show below why it works under this scenario. For $\epsilon > nln2$, choose $v=\Vec{0}$. We will also show below why this works. \\
+
+First, consider $\epsilon\leq nln2$. Now we prove that $v=-\frac{ln(e^{\epsilon / n}-1)}{\gamma} \widetilde{w}$ works for all given $\widetilde{w},n,\gamma$ when , by showing that for each individual sample data, $LL(v)^{(i)}\geq -\epsilon /n$.\\
+
+Consider $y^{(i)} = 1$, when $w^Tx\geq\gamma$, we have $v^Tx = -\frac{ln(e^{\epsilon / n}-1)}{\gamma} \widetilde{w}^Tx$. Since $\epsilon \leq nln2$, we know $ln(e^{\epsilon / n}-1) \leq 0$, and $v^Tx \geq -ln(e^{\epsilon / n}-1)$. Substitute this into the log likelihood function, 
+\begin{equation}
+    \begin{split}
+        v^Tx^{(i)} &\geq -ln(e^{\epsilon / n} - 1) \\
+        e^{v^Tx^{(i)}} &\geq \frac{1}{e^{\epsilon / n} - 1} \\
+        1/e^{v^Tx^{(i)}} &\leq e^{\epsilon / n} - 1 \\
+        1/e^{v^Tx^{(i)}} + 1 &\leq e^{\epsilon / n} \\
+        \frac{1}{1/e^{v^Tx^{(i)}} + 1} &\geq e^{-\epsilon / n} \\
+        \frac{e^{v^T x^{(i)}}}{1+e^{\Vec{v}^T x^{(i)}}} &\geq e^{-\epsilon / n} \\
+        v^T x^{(i)}- ln(1+e^{\Vec{v}^T x^{(i)}}) &\geq -\epsilon / n \\
+        LL(v)^{(i)} &\geq -\epsilon /n
+    \end{split}
+\end{equation}
+
+Consider $y^{(i)} = 0$, when $w^Tx\leq-\gamma$, we have $v^Tx = -\frac{ln(e^{\epsilon / n}-1)}{\gamma} \widetilde{w}^Tx$. Since $\epsilon\leq nln2$, we know $ln(e^{\epsilon / n}-1) \leq 0$, and $v^Tx \leq ln(e^{\epsilon / n}-1)$. Substitute this into the log likelihood function, 
+\begin{equation}
+    \begin{split}
+        \Vec{v}^T x^{(i)} &\leq ln(e^{\epsilon / n}-1) \\
+        e^{\Vec{v}^T x^{(i)}} &\leq e^{\epsilon / n}-1 \\
+        1+e^{\Vec{v}^T x^{(i)}} &\leq e^{\epsilon / n} \\
+        ln(1+e^{\Vec{v}^T x^{(i)}}) &\leq \epsilon / n \\
+        - ln(1+e^{\Vec{v}^T x^{(i)}}) &\geq -\epsilon / n \\
+        LL(v)^{(i)} &\geq -\epsilon /n
+    \end{split}
+\end{equation}
+
+Now consider the case where $\epsilon> nln2$. We can also show that for each individual sample data, $LL(v)^{(i)}\geq -\epsilon /n$. For this scenario, we choose $v=\Vec{0}$. Consider $y^{(i)}=1$, $LL(v)^{(i)}=v^Tx^{(i)}-ln(1+e^{v^Tx^{(i)}}) = -ln2>-\epsilon/n$. Consider $y^{(i)}=0$, $LL(v)^{(i)}=-ln(1+e^{v^Tx^{(i)}}) = -ln2>-\epsilon/n$. \\
+
+We have proved that for all cases our chosen $v$ satisfies $LL(v)^{(i)}\geq -\epsilon /n$ for any sample data $y^{(i)}=0$ or $y^{(i)}=1$. When summed up, $LL(v)\geq -\epsilon$ for any given $\widetilde{w}, n, \gamma$. That completes the proof.
+
+% \begin{equation}
+%     \begin{split}
+%         LL(v)^{(i)}&=v^Tx^{(i)}-ln(1+e^{v^Tx^{(i)}}) \\
+%         &=-\frac{ln(e^{\epsilon / n}-1)}{\gamma} \widetilde{w}^Tx^{(i)}-ln(1+e^{^Tx^{(i)}}
+%     \end{split}
+% \end{equation}
+
+\newpage
+\section*{Problem 7}
+% The feature map constructed for this classification problem is
+% \begin{equation}
+%     \phi(x) = (\frac{r}{\Vert x-c\Vert}-1)
+% \end{equation}
+% For every $c \in \mathbb{R}^d, r>0$, we can find a weight vector $w=(1) \in \mathbb{R}^1$, such that $\phi(x)^Tw>0 \text{ if and only if } f_{c,r}(x)=1$ for all $x \in \mathbb{R}^d$. We will prove both sides of the claim below.\\
+
+% Show that $\phi(x)^Tw>0 \text{ if } f_{c,r}(x)=1$ for all $x \in \mathbb{R}^d$. \\
+% Since $f_{c,r}(x)=1$, we know $0<\Vert x-c\Vert<r$. Therefore $\phi(x)^Tw=\frac{r}{\Vert x-c\Vert}-1>1-1=0$.\\
+
+% Show that $f_{c,r}(x)=1 \text{ if } \phi(x)^Tw>0$ for all $x \in \mathbb{R}^d$. \\
+% Since $\phi(x)^Tw>0$, we know $\frac{r}{\Vert x-c\Vert}-1>0$, which indicates $\Vert x-c\Vert<r$. Therefore $f_{c,r}(x)=1$.
+
+The feature map constructed for this classification problem is
+\begin{equation}
+    \varphi (x) = (\Vert x \Vert ^2, x, 1)
+\end{equation}
+
+To show that this feature map works, we will show that for every $c \in \mathbb{R}^d, r>0$, we can find a weight vector $w = (-1, 2c^T, r^2-\Vert c\Vert ^2) \in \mathbb{R}^3$, such that $\varphi(x)^Tw>0 \text{ if and only if } f_{c,r}(x)=1$ for all $x \in \mathbb{R}^d$.\\
+
+Show that $\varphi(x)^Tw>0 \text{ if } f_{c,r}(x)=1$ for all $x \in \mathbb{R}^d$. \\
+Since $f_{c,r}(x)=1$, we know $\Vert x-c\Vert<r$. Therefore 
+\begin{equation}
+    \begin{split}
+        \varphi(x)^Tw &=-\Vert x \Vert ^2+2c^Tx-\Vert c\Vert ^2+r^2\\
+        &=-\Vert x-c \Vert^2+r^2 \\
+        &>0
+    \end{split}
+\end{equation}
+
+
+Show that $f_{c,r}(x)=1 \text{ if } \phi(x)^Tw>0$ for all $x \in \mathbb{R}^d$. \\
+Since $\varphi(x)^Tw>0$, we know $-\Vert x \Vert ^2+2c^Tx-\Vert c\Vert ^2+r^2>0$, which indicates $-\Vert x-c \Vert^2+r^2>0$. This says $\Vert x-c \Vert^2<r^2$. Since both sides of the inequality are non-negatives, take the square off and we have $\Vert x-c \Vert<r$, which suggests $f_{c,r}(x)=1$.
+
+\end{document}
